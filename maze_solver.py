@@ -9,6 +9,7 @@ from matplotlib.animation import FuncAnimation
 from matplotlib.patches import Rectangle
 from IPython.display import Image, display
 
+
 def heuristic(_, a, b):
     (x1, y1) = a
     (x2, y2) = b
@@ -62,7 +63,7 @@ def constrained_a_star_viz(G, source, target, expected_pathlength = 50, in_used_
             new_path = path + [current]
 
             if current == target and cost == expected_pathlength:
-                return new_path, visited  # Return both the path and the visited dict with costs
+                return new_path, visited, visited_nodes  # Return both the path and the visited dict with costs
             else:
                 for neighbor, data in G[current].items():
                     if (current, neighbor) not in in_used_edges:
@@ -75,7 +76,7 @@ def constrained_a_star_viz(G, source, target, expected_pathlength = 50, in_used_
                                 priority = expected_pathlength - total_cost + heuristic(G, neighbor, target)
                                 heapq.heappush(queue, (priority, neighbor, new_path, total_cost))
 
-    return None, visited  # In case no path is found, return None and the visited dict
+    return None, visited, visited_nodes  # In case no path is found, return None and the visited dict
 
 
 # grid graph
@@ -101,7 +102,6 @@ def bfs_with_distances(G, start):
     return visited
 
 
-# 使用BFS找到路径（从目的地回溯到源点）
 def bfs_find_path(parents, start, end):
     path = [end]
     while path[-1] != start:
@@ -111,8 +111,44 @@ def bfs_find_path(parents, start, end):
 
 
 def animate_maze_router(start, end, grid_size, obstacles, router='dijkstra'):
+    def constraint_update(frame):
+        ax.clear()
+        plt.axis('off')
+        ax.set_xlim(-0.5, dim_x - 0.5)
+        ax.set_ylim(-0.5, dim_y - 0.5)
+
+        if frame < len(visited_nodes):
+            current_visited = visited_nodes[frame]
+        else:
+            current_visited = visited_nodes[-1]
+
+        # max_distance for nomalize the color
+        max_distance = max(visited.values(), default=1)
+        for x in range(dim_x):
+            for y in range(dim_y):
+                if (x, y) in obstacles:
+                    ax.add_patch(Rectangle((y - 0.5, x - 0.5), 1, 1, color="black"))
+                elif (x, y) in current_visited:
+                    distance = current_visited[(x, y)]
+                    normalized_distance = distance / max_distance
+                    color = plt.cm.Blues(normalized_distance + 0.1)
+                    ax.add_patch(Rectangle((y - 0.5, x - 0.5), 1, 1, color=color))
+                    ax.text(y, x, str(distance), ha='center', va='center', color='black')
+
+        # begin and end
+        ax.add_patch(Rectangle((start[1] - 0.5, start[0] - 0.5), 1, 1, color="lime"))
+        ax.text(start[1], start[0], 'SOURCE', ha='center', va='center', color='black')
+        ax.add_patch(Rectangle((end[1] - 0.5, end[0] - 0.5), 1, 1, color="red"))
+        ax.text(end[1], end[0], 'SINK', ha='center', va='center', color='black')
+
+        # extra frames for the path (if exists)
+        if path and frame == len(visited_nodes) - 1 + extra_frames:
+            for pos in path:
+                ax.add_patch(Rectangle((pos[1] - 0.5, pos[0] - 0.5), 1, 1, color="yellow"))
+                ax.text(pos[1], pos[0], str(current_visited.get(pos, '')), ha='center', va='center', color='black')
+
     def update(frame):
-        # 安全检查，以确保如果end不在visited中，则不会引发错误
+
         max_frame = max(visited.values(), default=0)
         frame_limit = visited.get(end, max_frame)
         frame = min(frame, frame_limit)
@@ -122,7 +158,6 @@ def animate_maze_router(start, end, grid_size, obstacles, router='dijkstra'):
         ax.set_xlim(-0.5, dim_x - 0.5)
         ax.set_ylim(-0.5, dim_y - 0.5)
 
-        # 仅在visited有值时计算max_distance
         max_distance = max(visited.values(), default=1)
         for x in range(dim_x):
             for y in range(dim_y):
@@ -135,59 +170,22 @@ def animate_maze_router(start, end, grid_size, obstacles, router='dijkstra'):
                     ax.add_patch(Rectangle((y - 0.5, x - 0.5), 1, 1, color=color))
                     ax.text(y, x, str(distance), ha='center', va='center', color='black')
 
-        # 当波前到达终点时，开始绘制路径（如果路径存在）
+        #  when wave front reach, begin drawing and path exists
         if frame >= frame_limit and path:
             for pos in path:
                 if visited.get(pos, float('inf')) <= frame:
                     ax.add_patch(Rectangle((pos[1] - 0.5, pos[0] - 0.5), 1, 1, color="yellow"))
                     ax.text(pos[1], pos[0], str(visited.get(pos, '')), ha='center', va='center', color='black')
 
-        # 标记起点和终点
+        # start and end label
         ax.add_patch(Rectangle((start[1] - 0.5, start[0] - 0.5), 1, 1, color="lime"))
         ax.text(start[1], start[0], 'SOURCE', ha='center', va='center', color='black')
         ax.add_patch(Rectangle((end[1] - 0.5, end[0] - 0.5), 1, 1, color="red"))
         ax.text(end[1], end[0], 'SINK', ha='center', va='center', color='black')
 
-    # def update(frame):
-    #     if frame > visited[end]:
-    #         frame = visited[end]
-    #
-    #     ax.clear()
-    #     plt.axis('off')
-    #     ax.set_xlim(-0.5, dim_x - 0.5)
-    #     ax.set_ylim(-0.5, dim_y - 0.5)
-    #
-    #     max_distance = max(visited.values())
-    #     for x in range(dim_x):
-    #         for y in range(dim_y):
-    #             if (x, y) in obstacles:
-    #                 ax.add_patch(Rectangle((y - 0.5, x - 0.5), 1, 1, color="black"))
-    #             elif (x, y) in visited and visited[(x, y)] <= frame:
-    #                 distance = visited[(x, y)]
-    #                 normalized_distance = distance / max_distance
-    #                 # color
-    #                 color = plt.cm.Blues(normalized_distance + 0.1)
-    #                 ax.add_patch(Rectangle((y - 0.5, x - 0.5), 1, 1, color=color))
-    #                 ax.text(y, x, str(visited[(x, y)]), ha='center', va='center', color='black')
-    #
-    #
-    #     # when wave front reach, begin drawing
-    #     if frame >= visited[end]:
-    #         for pos in path:
-    #             if visited[pos] <= frame:
-    #                 ax.add_patch(Rectangle((pos[1] - 0.5, pos[0] - 0.5), 1, 1, color="yellow"))
-    #                 ax.text(pos[1], pos[0], str(visited[pos]), ha='center', va='center', color='black')
-    #
-    #     # label source and sink
-    #     ax.add_patch(Rectangle((start[1] - 0.5, start[0] - 0.5), 1, 1, color="lime"))
-    #     ax.text(start[1], start[0], 'SOURCE', ha='center', va='center', color='black')
-    #     ax.add_patch(Rectangle((end[1] - 0.5, end[0] - 0.5), 1, 1, color="red"))
-    #     ax.text(end[1], end[0], 'SINK', ha='center', va='center', color='black')
 
     dim_x, dim_y = grid_size
-
     G = create_grid_graph_with_obstacles(dim_x, dim_y, obstacles)
-
     # use the nx embedded router, method only can be dijkstra/ bellman-ford
     if router == 'dijkstra' or router == 'bellman-ford' or router == 'bfs':
         path = nx.shortest_path(G, start, end, method='dijkstra')  # 注意这里可能需要根据router调整方法
@@ -195,7 +193,7 @@ def animate_maze_router(start, end, grid_size, obstacles, router='dijkstra'):
     elif router == 'a_star':
         path, visited = a_star_viz(G, start, end)
     elif router == 'constrained_a_star':
-        path, visited = constrained_a_star_viz(G, start, end)
+        path, visited, visited_nodes = constrained_a_star_viz(G, start, end)
     else:
         raise Exception("We don't support this search method, you need to define it manually.")
 
@@ -207,8 +205,11 @@ def animate_maze_router(start, end, grid_size, obstacles, router='dijkstra'):
 
     fig, ax = plt.subplots(figsize=(10, 10))
     plt.axis('off')
-    extra_frames = 25  # 大约五秒的延迟帧数
-    ani = FuncAnimation(fig, update, frames=max(visited.values()) + 1 + extra_frames, interval=200, repeat=False)
+    extra_frames = 25  # 5 secs
+    if router == "constrained_a_star":
+        ani = FuncAnimation(fig, constraint_update, frames=len(visited_nodes) + 1 + extra_frames, interval=200, repeat=False)
+    else:
+        ani = FuncAnimation(fig, update, frames=max(visited.values()) + 1 + extra_frames, interval=200, repeat=False)
     file_name = './{}_grid_animation_with_path_and_weights.gif'.format(router)
     ani.save(file_name, writer='pillow', dpi=140)
     display(Image(filename=file_name))
