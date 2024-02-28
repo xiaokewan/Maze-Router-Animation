@@ -1,14 +1,12 @@
-import os
-
-import matplotlib.pyplot as plt
-import networkx as nx
-import heapq
+from matplotlib import pyplot as plt
 from itertools import count
 from heapq import heappop, heappush
 from matplotlib.animation import FuncAnimation
 from matplotlib.patches import Rectangle
 from IPython.display import Image, display
-
+import os
+import networkx as nx
+import heapq
 
 def heuristic(_, a, b):
     (x1, y1) = a
@@ -16,7 +14,7 @@ def heuristic(_, a, b):
     return abs(x1 - x2) + abs(y1 - y2)
 
 
-def a_star_viz(G, source, target, direction_factor = 2):
+def a_star_viz(G, source, target, direction_factor=1):
     queue = [(0, source, [], 0)]  # (priority, current node, path, cost)
     visited = {}  # This will store the distance from source to the node
     visited_nodes = []  # For visualization
@@ -110,7 +108,7 @@ def bfs_find_path(parents, start, end):
     return path
 
 
-def animate_maze_router(start, end, grid_size, obstacles, router='dijkstra'):
+def animate_maze_router(start, end, grid_size, obstacles, router='dijkstra', attr={'direction_factor':1, 'expect_pathlength':32}):
     def constraint_update(frame):
         ax.clear()
         plt.axis('off')
@@ -191,12 +189,16 @@ def animate_maze_router(start, end, grid_size, obstacles, router='dijkstra'):
         path = nx.shortest_path(G, start, end, method='dijkstra')  # 注意这里可能需要根据router调整方法
         visited = bfs_with_distances(G, start)
     elif router == 'a_star':
-        path, visited = a_star_viz(G, start, end)
+        df = attr["direction_factor"]
+        path, visited = a_star_viz(G, start, end, direction_factor=df)
     elif router == 'constrained_a_star':
-        path, visited, visited_nodes = constrained_a_star_viz(G, start, end)
+        ep = attr["expect_pathlength"]
+        path, visited, visited_nodes = constrained_a_star_viz(G, start, end, ep)
     else:
         raise Exception("We don't support this search method, you need to define it manually.")
 
+    if path:
+        print("found path, start making animation")
     parents = {start: None}
     for node in visited:
         for neighbor in G.neighbors(node):
@@ -206,12 +208,14 @@ def animate_maze_router(start, end, grid_size, obstacles, router='dijkstra'):
     fig, ax = plt.subplots(figsize=(10, 10))
     plt.axis('off')
     extra_frames = 25  # 5 secs
-    if router == "constrained_a_star":
-        ani = FuncAnimation(fig, constraint_update, frames=len(visited_nodes) + 1 + extra_frames, interval=200, repeat=False)
-    else:
-        ani = FuncAnimation(fig, update, frames=max(visited.values()) + 1 + extra_frames, interval=200, repeat=False)
+    # if router == "constrained_a_star":
+    #     ani = FuncAnimation(fig, constraint_update, frames=len(visited_nodes) + 1 + extra_frames, interval=200, repeat=False)
+    #     dpi = 60
+    # else:
+    ani = FuncAnimation(fig, update, frames=max(visited.values()) + 1 + extra_frames, interval=200, repeat=False)
+    dpi = 140
     file_name = './{}_grid_animation_with_path_and_weights.gif'.format(router)
-    ani.save(file_name, writer='pillow', dpi=140)
+    ani.save(file_name, writer='pillow', dpi = dpi)
     display(Image(filename=file_name))
     file_path = os.path.join(os.getcwd(), file_name)
     os.startfile(file_path)
@@ -220,7 +224,9 @@ def animate_maze_router(start, end, grid_size, obstacles, router='dijkstra'):
 
 if __name__ == "__main__":
     start, end = (0, 0), (15, 17)
-    obstacles = [(4, 4), (4, 5), (4, 6), (5, 4), (6, 4), (11, 10), (11, 11), (11, 12), (11, 13), (11, 14), (11, 15), (11, 16), (11, 17), (11, 18), (11, 19)]
+    obstacles = [(4, 4), (4, 5), (4, 6), (5, 4), (6, 4), (11, 10), (11, 11), (11, 12), (11, 13), (11, 14), (11, 15), (11, 16), (11, 17), (11, 18)]
     grid_size = [20, 20]
     router = 'constrained_a_star'
-    animate_maze_router(start, end, grid_size, obstacles, router)
+    attr = {'direction_factor': 1.0,    # for a_star
+            'expect_pathlength': 36}    # for constrained a_star
+    animate_maze_router(start, end, grid_size, obstacles, router, attr=attr)
