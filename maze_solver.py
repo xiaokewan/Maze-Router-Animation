@@ -23,6 +23,7 @@ def create_grid_graph_with_obstacles(dim_x, dim_y, obstacles, diagonal=True):
             G.add_edges_from([(node, neighbor) for neighbor in valid_neighbors])
     weights = {edge: 1 for edge in G.edges()}
     nx.set_edge_attributes(G, weights, 'length')
+
     return G
 
 
@@ -131,6 +132,38 @@ def animate_maze_router(start, end, grid_size, obstacles=[], router='dijkstra',
         # cb.set_ticks([0, max_distance])
         # cb.set_ticklabels(['0', str(max_distance)])
 
+    def update_ep(frame):
+        ax.clear()
+        plt.axis('off')
+        ax.set_xlim(-0.5, dim_x - 0.5)
+        ax.set_ylim(-0.5, dim_y - 0.5)
+        ax.set_xticks([i + 0.5 for i in range(dim_x)])
+        ax.set_yticks([i + 0.5 for i in range(dim_y)])
+        ax.set_xticklabels([str(i + 1) for i in range(dim_x)])
+        ax.set_yticklabels([str(i + 1) for i in range(dim_y)])
+        ax.tick_params(axis='both', which='both', length=0)
+
+        max_cost = max(visited.values(), default=1)
+        for x in range(dim_x):
+            for y in range(dim_y):
+                if (x, y) in obstacles:
+                    ax.add_patch(Rectangle((y - 0.5, x - 0.5), 1, 1, color="#293241"))  # black
+                elif visited.get((x, y), float('inf')) <= frame:
+                    cost = visited.get((x, y), 0)
+                    normalized_cost = cost / max_cost
+                    color = plt.cm.Blues(normalized_cost + 0.1)
+                    ax.add_patch(Rectangle((y - 0.5, x - 0.5), 1, 1, color=color))
+                    ax.text(y, x, str(cost), ha='center', va='center', color='black')
+
+        if frame >= max_cost and path:
+            for pos in path:
+                if visited.get(pos, float('inf')) <= frame:
+                    ax.add_patch(Rectangle((pos[1] - 0.5, pos[0] - 0.5), 1, 1, color="#ee6c4d"))
+                    ax.text(pos[1], pos[0], str(visited.get(pos, '')), ha='center', va='center', color='black')
+
+        ax.add_patch(Rectangle((start[1] - 0.5, start[0] - 0.5), 1, 1, color="#fb8500"))
+        ax.add_patch(Rectangle((end[1] - 0.5, end[0] - 0.5), 1, 1, color="#fb8500"))
+
     def save_last_frame_as_pdf(ax, start, end, obstacles, visited, path, grid_size, file_name):
         ax.clear()
         plt.axis('off')
@@ -224,7 +257,7 @@ def animate_maze_router(start, end, grid_size, obstacles=[], router='dijkstra',
     G = create_grid_graph_with_obstacles(dim_x, dim_y, obstacles, diagonal=diagonal_grid)
     # use the nx embedded router, method only can be dijkstra/ bellman-ford
     if router == 'dijkstra' or router == 'bellman-ford' or router == 'bfs':
-        path = nx.shortest_path(G, start, end, method='dijkstra')  # 注意这里可能需要根据router调整方法
+        path = nx.shortest_path(G, start, end, method='dijkstra')
         visited = bfs_with_distances(G, start)
     elif router == 'a_star':
         df = attr["direction_factor"]
@@ -232,40 +265,42 @@ def animate_maze_router(start, end, grid_size, obstacles=[], router='dijkstra',
     elif router == 'constrained_a_star':
         ep = attr["expect_pathlength"]
         df = attr["direction_factor"]
-        path, visited, visited_nodes = constrained_a_star_viz(G, start, end, ep, direction_factor=df)
+        path, visited, visited_nodes, _ = lm_dual_stage_v2(G, start, end, ep)
+        # path, visited, visited_nodes = constrained_a_star_viz(G, start, end, ep)
     else:
         raise Exception("We don't support this search method, you need to define it manually.")
-
     if path:
         print("found path, start making animation")
-    parents = {start: None}
-    for node in visited:
-        for neighbor in G.neighbors(node):
-            if neighbor not in parents:
-                parents[neighbor] = node
+    # parents = {start: None}
+    # for node in visited:
+    #     for neighbor in G.neighbors(node):
+    #         if neighbor not in parents:
+    #             parents[neighbor] = node
 
     fig, ax = plt.subplots(figsize=(10, 10))
     plt.axis('off')
-    extra_frames = 25  # 5 secs
-    if router == "constrained_a_star":
-        ani = FuncAnimation(fig, update, frames=len(visited_nodes) + 1 + extra_frames, interval=300, repeat=True)
-        dpi = 60
-    elif router == "a_star":
-        ani = FuncAnimation(fig, update, frames=len(visited_nodes) + 1 + extra_frames, interval=300, repeat=True)
-        dpi = 60
-    else:
-        ani = FuncAnimation(fig, update, frames=max(visited.values()) + 1 + extra_frames, interval=300, repeat=True)
-        dpi = 140
-    # file_name = './{}_grid_animation_with_path_and_weights.gif'.format(router)
+    # extra_frames = 25  # 5 secs
+    # if router == "constrained_a_star":
+    #     ani = FuncAnimation(fig, update_ep, frames=len(visited_nodes) + 1 + extra_frames, interval=60, repeat=True)
+    #     dpi = 60
+    # elif router == "a_star":
+    #     ani = FuncAnimation(fig, update, frames=len(visited_nodes) + 1 + extra_frames, interval=300, repeat=True)
+    #     dpi = 60
+    # else:
+    #     ani = FuncAnimation(fig, update, frames=max(visited.values()) + 1 + extra_frames, interval=300, repeat=True)
+    #     dpi = 140
+    # # file_name = './{}_grid_animation_with_path_and_weights.gif'.format(router)
     file_name = './{}_grid_animation_withs{}.gif'.format(router, "_".join(
         f"{key}={value}" for key, value in attr.items()))
-    ani.save(file_name, writer='pillow', dpi=dpi)
-    display(Image(filename=file_name))
-    file_path = os.path.join(os.getcwd(), file_name)
-    os.startfile(file_path)
-    print("! Success simulation, animation saved in address")
+    # ani.save(file_name, writer='pillow', dpi=dpi)
+    # display(Image(filename=file_name))
+    # file_path = os.path.join(os.getcwd(), file_name)
+    # os.startfile(file_path)
+    # print("! Success simulation, animation saved in address")
     save_last_frame_as_pdf(ax, start, end, obstacles, visited, None, grid_size, file_name+'.pdf')
     # save_last_frame_as_pdf(ax, start, end, obstacles, visited, path, grid_size, file_name + '_with_path.pdf')
+
+
 
 if __name__ == "__main__":
     start, end = (0, 0), (7, 7)
@@ -277,8 +312,8 @@ if __name__ == "__main__":
     # router = 'a_star'
     router = 'constrained_a_star'
     attr = {  # for a_star
-        'direction_factor': 1.01,
-        'expect_pathlength': 20,
+        'direction_factor': 1,
+        'expect_pathlength': 24,
         'diagonal_grid': False
     }  # for constrained a_star
 
