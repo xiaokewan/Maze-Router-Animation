@@ -176,6 +176,8 @@ def animate_maze_router(start, end, grid_size, obstacles=[], router='dijkstra',
         ax.set_yticklabels([str(i + 1) for i in range(dim_y)])
         ax.tick_params(axis='both', which='both', length=0)
         max_distance = max(visited.values(), default=1)
+        if max_distance == 0 and path:
+            max_distance = len(path)
         for x in range(dim_x):
             for y in range(dim_y):
                 if (x, y) in obstacles:
@@ -265,7 +267,7 @@ def animate_maze_router(start, end, grid_size, obstacles=[], router='dijkstra',
     elif router == 'constrained_a_star':
         ep = attr["expect_pathlength"]
         df = attr["direction_factor"]
-        path, visited, visited_nodes, _ = lm_dual_stage_v2(G, start, end, ep)
+        path, visited, visited_nodes, _ = elp_route(G, start, end, ep)
         # path, visited, visited_nodes = constrained_a_star_viz(G, start, end, ep)
     else:
         raise Exception("We don't support this search method, you need to define it manually.")
@@ -297,7 +299,7 @@ def animate_maze_router(start, end, grid_size, obstacles=[], router='dijkstra',
     # file_path = os.path.join(os.getcwd(), file_name)
     # os.startfile(file_path)
     # print("! Success simulation, animation saved in address")
-    save_last_frame_as_pdf(ax, start, end, obstacles, visited, None, grid_size, file_name+'.pdf')
+    save_last_frame_as_pdf(ax, start, end, obstacles, visited, path, grid_size, file_name+'.pdf')
     # save_last_frame_as_pdf(ax, start, end, obstacles, visited, path, grid_size, file_name + '_with_path.pdf')
 
 
@@ -313,7 +315,7 @@ if __name__ == "__main__":
     router = 'constrained_a_star'
     attr = {  # for a_star
         'direction_factor': 1,
-        'expect_pathlength': 24,
+        'expect_pathlength': 20,
         'diagonal_grid': False
     }  # for constrained a_star
 

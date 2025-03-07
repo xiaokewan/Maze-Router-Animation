@@ -61,9 +61,9 @@ def elp_route(G, source, target, expected_pathlength=50, in_used_paths=None,  di
     queue = [(0, next(c), source, [], 0)]  # (priority, count, current node, path, cost)
     visited = {}  # This will now be a dict storing cost from source to each node
     visited_nodes = []  # For visualization, storing copies of the visited dict
-    shortest = heuristic(G,source,target)
     in_used_opposite_edges = set()
     in_used_edges = set()
+    tt_pushed = 1
     if in_used_paths:
         for path in in_used_paths:
             for u, v in zip(path, path[1:]):
@@ -72,33 +72,31 @@ def elp_route(G, source, target, expected_pathlength=50, in_used_paths=None,  di
 
     while queue:
         (priority, _, current, path, cost) = heappop(queue)
-        # looks can not remove this restriction quickly
-        print("pop:", (priority, current, path, cost))
-        if current not in visited:
-            visited[current] = cost  # Record the cost for reaching current node
+        if current not in visited or priority <= visited[current]:
+            visited[current] = priority  # Record the cost for reaching current node
             visited_nodes.append(visited.copy())  # For visualization
             new_path = path + [current]
 
-            if current == target and cost == expected_pathlength:
-                return new_path, visited, visited_nodes  # Return both the path and the visited dict with costs
-            # else:
+            if current == target:
+                if cost == expected_pathlength:
+                    print(f"")
+                    return new_path, visited, visited_nodes, tt_pushed  # Return both the path and the visited dict with costs
+                else:
+                    continue
             for neighbor, data in G[current].items():
-                # if (current, neighbor) not in in_used_edges:
-                if neighbor not in visited:
-                    # print("in_used_edges:", in_used_edges)
-                    edge_cost = data.get('length', 1)  # Use 1 as default edge cost if 'length' is not available
-                    remaining_cost = expected_pathlength - (cost + edge_cost)
-                    total_cost = cost + edge_cost
+                if (current, neighbor) in in_used_edges or (current, neighbor) in set(zip(new_path, new_path[1:])) | set(zip(new_path[1:], new_path)) or neighbor in new_path:
+                    continue
+                # print("in_used_edges:", in_used_edges)
+                edge_cost = data.get('length', 1)  # Use 1 as default edge cost if 'length' is not available
+                gn = cost + edge_cost
+                hn = heuristic(G, neighbor, target)
+                fn = expected_pathlength - gn - hn
 
-                    if remaining_cost >= 0:
-                        if total_cost + heuristic(G, neighbor, target) <= expected_pathlength:
-                            priority = ( expected_pathlength - total_cost - 0.9*heuristic(G, neighbor, target))
-                            if priority < 0:
-                                priority = 0
-                            print("push:",(priority, next(c), neighbor, new_path, total_cost))
-                            heappush(queue, (priority, next(c), neighbor, new_path, total_cost))
+                if fn >= 0 and (neighbor not in visited or fn <= visited[neighbor]):
+                    heappush(queue, (fn, next(c), neighbor, new_path, gn))
+                    tt_pushed += 1
 
-    return None, visited, visited_nodes  # In case no path is found, return None and the visited dict
+    return None, visited, visited_nodes, tt_pushed  # In case no path is found, return None and the visited dict
 
 
 def constrained_a_star_viz(G, source, target, expected_pathlength, in_used_paths=None, direction_factor = 1):
